@@ -1467,6 +1467,17 @@ Jan 12 10:46:45 example.com bluetoothd[8900]: gatt-time-server: Input/output err
           </listitem>
         </varlistentry>
 
+        <varlistentry>
+          <term><command>show-log <replaceable>UNIT</replaceable>...</command></term>
+
+          <listitem>
+            <para>Show logs from journald of the specifies unit(s).
+            The result is the same as by <command>journalctl -u <replaceable>UNIT</replaceable></command>.
+            This option is designed for enabled MAC systems, like SELinux,
+            when the usage of journalctl is forbidden.</para>
+          </listitem>
+        </varlistentry>
+
       </variablelist>
     </refsect2>
 

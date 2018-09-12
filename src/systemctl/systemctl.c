@@ -165,6 +165,7 @@ static BusTransport arg_transport = BUS_TRANSPORT_LOCAL;
 static const char *arg_host = NULL;
 static unsigned arg_lines = 10;
 static OutputMode arg_output = OUTPUT_SHORT;
+static const char *arg_output_str = "short";
 static bool arg_plain = false;
 static bool arg_firmware_setup = false;
 static bool arg_now = false;
@@ -3751,6 +3752,61 @@ static int kill_unit(int argc, char *argv[], void *userdata) {
         return r;
 }
 
+static int showlog(int argc, char *argv[], void *userdata) {
+        _cleanup_strv_free_ char **names = NULL;
+        char **name;
+        sd_bus *bus;
+        int r, q;
+        const char *log;
+
+        if (arg_transport != BUS_TRANSPORT_LOCAL) {
+                log_error("Cannot remotely show units log.");
+                return -EINVAL;
+        }
+
+        r = acquire_bus(BUS_MANAGER, &bus);
+        if (r < 0)
+                return r;
+
+        polkit_agent_open_maybe();
+
+        r = expand_names(bus, strv_skip(argv, 1), NULL, &names);
+        if (r < 0)
+                return log_error_errno(r, "Failed to expand names: %m");
+
+        STRV_FOREACH(name, names) {
+                _cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+                _cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
+
+                q = sd_bus_call_method(
+                                bus,
+                                "org.freedesktop.systemd1",
+                                "/org/freedesktop/systemd1",
+                                "org.freedesktop.systemd1.Manager",
+                                "ShowLogUnit",
+                                &error,
+                                &reply,
+                                "ssi", *name, arg_output_str, arg_lines);
+                if (q < 0) {
+                        log_error_errno(q, "Failed to show log of unit %s: %s", *name, bus_error_message(&error, q));
+                        if (r == 0)
+                                r = q;
+                } else {
+                        q = sd_bus_message_read(reply, "s", &log);
+                        if (q < 0) {
+                                bus_log_parse_error(q);
+                                if(r == 0)
+                                        r = q;
+                        } else
+                                printf("%s\n", log);
+                }
+
+
+        }
+
+        return r;
+}
+
 typedef struct ExecStatusInfo {
         char *name;
 
@@ -7188,6 +7244,7 @@ static int systemctl_help(void) {
                "                                      if supported, otherwise restart\n"
                "  isolate UNIT                        Start one unit and stop all others\n"
                "  kill UNIT...                        Send signal to processes of a unit\n"
+               "  show-log UNIT...                    Show logs of one unit\n"
                "  is-active PATTERN...                Check whether units are active\n"
                "  is-failed PATTERN...                Check whether units are failed\n"
                "  status [PATTERN...|PID...]          Show runtime status of one or more units\n"
@@ -7759,6 +7816,7 @@ static int systemctl_parse_argv(int argc, char *argv[]) {
                         }
 
                         arg_output = output_mode_from_string(optarg);
+                        arg_output_str = optarg;
                         if (arg_output < 0) {
                                 log_error("Unknown output '%s'.", optarg);
                                 return -EINVAL;
@@ -8378,6 +8436,7 @@ static int systemctl_main(int argc, char *argv[]) {
                 { "condrestart",           2,        VERB_ANY, VERB_ONLINE_ONLY, start_unit           }, /* For compatibility with RH */
                 { "isolate",               2,        2,        VERB_ONLINE_ONLY, start_unit           },
                 { "kill",                  2,        VERB_ANY, VERB_ONLINE_ONLY, kill_unit            },
+                { "show-log",              2,        VERB_ANY, VERB_ONLINE_ONLY, showlog              },
                 { "is-active",             2,        VERB_ANY, VERB_ONLINE_ONLY, check_unit_active    },
                 { "check",                 2,        VERB_ANY, VERB_ONLINE_ONLY, check_unit_active    }, /* deprecated alias of is-active */
                 { "is-failed",             2,        VERB_ANY, VERB_ONLINE_ONLY, check_unit_failed    },
