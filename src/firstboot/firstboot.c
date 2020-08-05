@@ -12,9 +12,9 @@
 #include "copy.h"
 #include "creds-util.h"
 #include "dissect-image.h"
-#include "env-file.h"
+#include "env-file-label.h"
 #include "fd-util.h"
-#include "fileio.h"
+#include "fileio-label.h"
 #include "fs-util.h"
 #include "hostname-util.h"
 #include "kbd-util.h"
@@ -314,8 +314,8 @@ static int process_locale(void) {
 
         if (arg_copy_locale && arg_root) {
 
-                (void) mkdir_parents(etc_localeconf, 0755);
-                r = copy_file("/etc/locale.conf", etc_localeconf, 0, 0644, 0, 0, COPY_REFLINK);
+                (void) mkdir_parents_label(etc_localeconf, 0755);
+                r = copy_file("/etc/locale.conf", etc_localeconf, 0, 0644, 0, 0, COPY_REFLINK | COPY_MAC_CREATE);
                 if (r != -ENOENT) {
                         if (r < 0)
                                 return log_error_errno(r, "Failed to copy %s: %m", etc_localeconf);
@@ -339,8 +339,8 @@ static int process_locale(void) {
 
         locales[i] = NULL;
 
-        (void) mkdir_parents(etc_localeconf, 0755);
-        r = write_env_file(etc_localeconf, locales);
+        (void) mkdir_parents_label(etc_localeconf, 0755);
+        r = write_env_file_label(etc_localeconf, locales);
         if (r < 0)
                 return log_error_errno(r, "Failed to write %s: %m", etc_localeconf);
 
@@ -389,8 +389,8 @@ static int process_keymap(void) {
 
         if (arg_copy_keymap && arg_root) {
 
-                (void) mkdir_parents(etc_vconsoleconf, 0755);
-                r = copy_file("/etc/vconsole.conf", etc_vconsoleconf, 0, 0644, 0, 0, COPY_REFLINK);
+                (void) mkdir_parents_label(etc_vconsoleconf, 0755);
+                r = copy_file("/etc/vconsole.conf", etc_vconsoleconf, 0, 0644, 0, 0, COPY_REFLINK | COPY_MAC_CREATE);
                 if (r != -ENOENT) {
                         if (r < 0)
                                 return log_error_errno(r, "Failed to copy %s: %m", etc_vconsoleconf);
@@ -411,11 +411,11 @@ static int process_keymap(void) {
 
         keymap = STRV_MAKE(strjoina("KEYMAP=", arg_keymap));
 
-        r = mkdir_parents(etc_vconsoleconf, 0755);
+        r = mkdir_parents_label(etc_vconsoleconf, 0755);
         if (r < 0)
                 return log_error_errno(r, "Failed to create the parent directory of %s: %m", etc_vconsoleconf);
 
-        r = write_env_file(etc_vconsoleconf, keymap);
+        r = write_env_file_label(etc_vconsoleconf, keymap);
         if (r < 0)
                 return log_error_errno(r, "Failed to write %s: %m", etc_vconsoleconf);
 
@@ -475,8 +475,8 @@ static int process_timezone(void) {
                         if (r < 0)
                                 return log_error_errno(r, "Failed to read host timezone: %m");
 
-                        (void) mkdir_parents(etc_localtime, 0755);
-                        if (symlink(p, etc_localtime) < 0)
+                        (void) mkdir_parents_label(etc_localtime, 0755);
+                        if (symlink_label(p, etc_localtime) < 0)
                                 return log_error_errno(errno, "Failed to create %s symlink: %m", etc_localtime);
 
                         log_info("%s copied.", etc_localtime);
@@ -493,8 +493,8 @@ static int process_timezone(void) {
 
         e = strjoina("../usr/share/zoneinfo/", arg_timezone);
 
-        (void) mkdir_parents(etc_localtime, 0755);
-        if (symlink(e, etc_localtime) < 0)
+        (void) mkdir_parents_label(etc_localtime, 0755);
+        if (symlink_label(e, etc_localtime) < 0)
                 return log_error_errno(errno, "Failed to create %s symlink: %m", etc_localtime);
 
         log_info("%s written", etc_localtime);
@@ -554,7 +554,7 @@ static int process_hostname(void) {
         if (isempty(arg_hostname))
                 return 0;
 
-        r = write_string_file(etc_hostname, arg_hostname,
+        r = write_string_file_label(etc_hostname, arg_hostname,
                               WRITE_STRING_FILE_CREATE | WRITE_STRING_FILE_SYNC | WRITE_STRING_FILE_MKDIR_0755 |
                               (arg_force ? WRITE_STRING_FILE_ATOMIC : 0));
         if (r < 0)
@@ -576,7 +576,7 @@ static int process_machine_id(void) {
         if (sd_id128_is_null(arg_machine_id))
                 return 0;
 
-        r = write_string_file(etc_machine_id, sd_id128_to_string(arg_machine_id, id),
+        r = write_string_file_label(etc_machine_id, sd_id128_to_string(arg_machine_id, id),
                               WRITE_STRING_FILE_CREATE | WRITE_STRING_FILE_SYNC | WRITE_STRING_FILE_MKDIR_0755 |
                               (arg_force ? WRITE_STRING_FILE_ATOMIC : 0));
         if (r < 0)
@@ -879,7 +879,7 @@ static int process_root_args(void) {
               arg_root_shell || arg_prompt_root_shell || arg_copy_root_shell))
                 return 0;
 
-        (void) mkdir_parents(etc_passwd, 0755);
+        (void) mkdir_parents_label(etc_passwd, 0755);
 
         lock = take_etc_passwd_lock(arg_root);
         if (lock < 0)
@@ -962,7 +962,7 @@ static int process_kernel_cmdline(void) {
         if (!arg_kernel_cmdline)
                 return 0;
 
-        r = write_string_file(etc_kernel_cmdline, arg_kernel_cmdline,
+        r = write_string_file_label(etc_kernel_cmdline, arg_kernel_cmdline,
                               WRITE_STRING_FILE_CREATE | WRITE_STRING_FILE_SYNC | WRITE_STRING_FILE_MKDIR_0755 |
                               (arg_force ? WRITE_STRING_FILE_ATOMIC : 0));
         if (r < 0)
